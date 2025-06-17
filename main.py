@@ -33,7 +33,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Serve index.html at root
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    with open("index.html") as f:
+    with open("static/index.html") as f:
         return f.read()
 
 # Model and preprocessing setup

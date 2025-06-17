@@ -91,7 +91,7 @@ def overlay_cam_on_image(original_img, cam):
     superimposed_img = np.clip(superimposed_img, 0, 255).astype(np.uint8)
     return superimposed_img
 
-@app.post("/predict")
+@app.post("https://pneumonia-xray-cam.onrender.com")
 async def predict(file: UploadFile = File(...)):
     image_bytes = await file.read()
     pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")

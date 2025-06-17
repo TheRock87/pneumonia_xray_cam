@@ -1,5 +1,5 @@
 // Fetch and display metrics
-fetch('https://pneumonia-xray-cam.onrender.com/metrics')
+fetch('/metrics')
   .then(res => res.json())
   .then(data => {
     document.getElementById('metrics').innerHTML = `
@@ -30,7 +30,7 @@ form.onsubmit = async (e) => {
   origImg.src = '';
   camImg.src = '';
   try {
-    const res = await fetch('https://pneumonia-xray-cam.onrender.com/predict', {
+    const res = await fetch('/predict', {
       method: 'POST',
       body: formData
     });

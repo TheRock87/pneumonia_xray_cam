@@ -2,8 +2,10 @@ import io
 import base64
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from PIL import Image
 import torch
 import torch.nn as nn
@@ -12,6 +14,7 @@ import torchvision.models as models
 import numpy as np
 import cv2
 import torch.nn.functional as F
+import os
 
 app = FastAPI()
 
@@ -23,6 +26,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Serve index.html at root
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    with open("index.html") as f:
+        return f.read()
 
 # Model and preprocessing setup
 MODEL_PATH = "pneumonia_classifier_weights.pth"

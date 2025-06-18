@@ -28,18 +28,6 @@ app = FastAPI(
 # --- Model Loading (Eager Loading) ---
 model = None
 
-@app.on_event("startup")
-def startup_event():
-    """Load the model when the server starts."""
-    global model
-    try:
-        model_path = "model/pneumonia_classifier_weights.pth"
-        print(f"--- Loading model from {model_path}... ---")
-        model = load_model(model_path, num_classes=2)
-        print("--- Model loaded successfully and is ready for predictions. ---")
-    except Exception as e:
-        print(f"!!! CRITICAL: Model loading failed: {e} !!!")
-
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -47,6 +35,7 @@ def read_root():
 
 @app.get("/health", status_code=200)
 def health_check():
+    """A simple health check endpoint that responds immediately."""
     return {"status": "ok"}
 
 @app.post("/predict")
@@ -58,9 +47,20 @@ async def predict(
     Receives an image, predicts its class (Normal/Pneumonia), and optionally
     returns a Grad-CAM visualization.
     """
+    global model
+
+    # === LAZY LOADING IMPLEMENTATION ===
+    # Check if the model has been loaded. If not, load it.
+    # This happens only on the very first call to this endpoint.
     if model is None:
-        print("Error: /predict called but model is not loaded.")
-        return JSONResponse(status_code=503, content={"error": "Model is not available. Please check server logs."})
+        print("--- Model is not loaded. Loading model for the first time... ---")
+        try:
+            model_path = "model/pneumonia_classifier_weights.pth"
+            model = load_model(model_path, num_classes=2)
+            print(f"--- Model loaded successfully from {model_path} ---")
+        except Exception as e:
+            print(f"!!! CRITICAL: Model loading failed: {e} !!!")
+            return JSONResponse(status_code=500, content={"error": "Failed to load the model."})
 
     # 1. Read and process image
     contents = await file.read()
@@ -82,9 +82,7 @@ async def predict(
         "confidence": float(f"{confidence_score * 100:.4f}")
     }
 
-
-    # Only perform the expensive CAM generation if the user requests it.
-    # This makes the default endpoint fast and avoids timeouts.
+    # Optional CAM Generation
     if generate_cam:
         print("--- CAM generation requested. This may be slow. ---")
         try:

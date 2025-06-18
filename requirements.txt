@@ -1,8 +1,11 @@
-fastapi
-uvicorn
-torch
-torchvision
-pillow
-numpy
-opencv-python
-python-multipart 
+# requirements.txt
+
+torch==2.7.0
+torchvision==0.22.0
+fastapi==0.115.13
+uvicorn[standard]==0.34.3  # The server that runs our FastAPI app
+python-multipart==0.0.20     # Needed by FastAPI for file uploads
+Pillow==11.2.1              # For image manipulation
+scikit-learn==1.7.0         # Often useful for ML metrics/utils
+numpy==2.3.0
+opencv-python-headless

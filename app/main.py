@@ -4,12 +4,10 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, UploadFile, File, Query, JSONResponse
 from PIL import Image
 
-# Assuming main.py is inside an 'app' directory, alongside model.py and utils.py
-# This is a standard and clean project structure.
+from .model import load_model
 from .model import load_model
 from .utils import (
     inference_transform, 

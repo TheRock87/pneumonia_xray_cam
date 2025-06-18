@@ -33,7 +33,7 @@ def startup_event():
     """Load the model when the server starts."""
     global model
     try:
-        model_path = "models/pneumonia_classifier_weights.pth"
+        model_path = "model/pneumonia_classifier_weights.pth"
         print(f"--- Loading model from {model_path}... ---")
         model = load_model(model_path, num_classes=2)
         print("--- Model loaded successfully and is ready for predictions. ---")

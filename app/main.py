@@ -47,6 +47,11 @@ def read_root():
         "message": "Welcome to the Pneumonia Detection API!"
     }
 
+@app.get("/health", status_code=200)
+def health_check():
+    """A simple health check endpoint that responds immediately."""
+    return {"status": "ok"}
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     if not model:

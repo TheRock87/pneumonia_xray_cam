@@ -31,57 +31,44 @@ model = None
 
 @app.on_event("startup")
 def startup_event():
-
+    """Load the model when the server starts."""
     global model
+    try:
+        model_path = "models/pneumonia_classifier_weights.pth"
+        print(f"--- Loading model from {model_path}... ---")
+        model = load_model(model_path, num_classes=2)
+        print("--- Model loaded successfully and is ready for predictions. ---")
+    except Exception as e:
+        print(f"!!! CRITICAL: Model loading failed: {e} !!!")
 
-    model = load_model(
-        model_path= "model/pneumonia_classifier_weights.pth",
-        num_classes=2
-        )
-    
-    print("--- Model loaded successfully and is ready to make predictions. ---")
-
+# --- API Endpoints ---
 @app.get("/")
 def read_root():
-    return {
-        "message": "Welcome to the Pneumonia Detection API!"
-    }
+    return {"message": "Welcome! Navigate to /docs to use the API."}
 
 @app.get("/health", status_code=200)
 def health_check():
-    """A simple health check endpoint that responds immediately."""
     return {"status": "ok"}
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(
+    file: UploadFile = File(...),
+    generate_cam: bool = Query(False, description="Set to true to generate and include the Grad-CAM image.")
+):
     """
-    Receives an image, predicts its class (Normal/Pneumonia), and returns
-    the prediction, confidence, and a Grad-CAM visualization.
+    Receives an image, predicts its class (Normal/Pneumonia), and optionally
+    returns a Grad-CAM visualization.
     """
-    # === START OF LAZY LOADING FIX ===
-    # We introduce a global `model` variable to use it across requests.
-    global model
-
-    # Check if the model has been loaded. If not, load it.
     if model is None:
-        print("--- Model is not loaded. Loading model for the first time... ---")
-        try:
-            model_path = "models/pneumonia_classifier_weights.pth"
-            model = load_model(model_path, num_classes=2)
-            print(f"--- Model loaded successfully from {model_path} ---")
-        except Exception as e:
-            print(f"!!! Model loading failed: {e} !!!")
-            return JSONResponse(status_code=500, content={"error": "Failed to load the model."})
-    # === END OF LAZY LOADING FIX ===
+        print("Error: /predict called but model is not loaded.")
+        return JSONResponse(status_code=503, content={"error": "Model is not available. Please check server logs."})
 
-    # 1. Read and process the uploaded image
+    # 1. Read and process image
     contents = await file.read()
     pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
-    
-    # 2. Prepare the image for the model
     input_tensor = inference_transform(pil_image).unsqueeze(0)
 
-    # 3. Get model prediction
+    # 2. Get model prediction
     with torch.no_grad():
         logits = model(input_tensor)
         probabilities = F.softmax(logits, dim=1)
@@ -89,25 +76,35 @@ async def predict(file: UploadFile = File(...)):
         predicted_class = CLASS_NAMES[predicted_idx.item()]
         confidence_score = confidence.item()
 
-    # 4. Generate Grad-CAM
-    target_layer = model.densenet.features.denseblock4
-    cam_heatmap = generate_grad_cam(model, input_tensor, target_layer)
-
-    # 5. Overlay CAM on the original image
-    original_image_np = np.array(pil_image)
-    superimposed_img = overlay_cam_on_image(original_image_np, cam_heatmap)
-
-    # 6. Encode the result image to Base64
-    superimposed_img_bgr = cv2.cvtColor(superimposed_img, cv2.COLOR_RGB2BGR)
-    _, img_encoded = cv2.imencode(".jpg", superimposed_img_bgr)
-    img_base64 = base64.b64encode(img_encoded).decode("utf-8")
-    cam_image_uri = "data:image/jpeg;base64," + img_base64
-
-    # 7. Return the full result
-    return {
+    # Prepare the base response
+    response_data = {
         "filename": file.filename,
         "prediction": predicted_class,
-        "confidence": float(f"{confidence_score * 100:.4f}"),
-        "cam_image": cam_image_uri
+        "confidence": float(f"{confidence_score * 100:.4f}")
     }
+
+    # === START OF FIX: OPTIONAL CAM GENERATION ===
+    # Only perform the expensive CAM generation if the user requests it.
+    # This makes the default endpoint fast and avoids timeouts.
+    if generate_cam:
+        print("--- CAM generation requested. This may be slow. ---")
+        try:
+            target_layer = model.densenet.features.denseblock4
+            cam_heatmap = generate_grad_cam(model, input_tensor, target_layer)
+            
+            original_image_np = np.array(pil_image)
+            superimposed_img = overlay_cam_on_image(original_image_np, cam_heatmap)
+            
+            superimposed_img_bgr = cv2.cvtColor(superimposed_img, cv2.COLOR_RGB2BGR)
+            _, img_encoded = cv2.imencode(".jpg", superimposed_img_bgr)
+            img_base64 = base64.b64encode(img_encoded).decode("utf-8")
+            
+            response_data["cam_image"] = "data:image/jpeg;base64," + img_base64
+        except Exception as e:
+            print(f"!!! CAM generation failed: {e} !!!")
+            response_data["cam_error"] = "Failed to generate CAM visualization."
+    # === END OF FIX ===
+
+    return response_data
+
 

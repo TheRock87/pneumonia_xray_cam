@@ -1,13 +1,15 @@
+# app/main.py
+
 import io
 import base64
 import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fastapi import FastAPI, UploadFile, File, Query, JSONResponse
+from fastapi import FastAPI, UploadFile, File, Query
+from fastapi.responses import JSONResponse
 from PIL import Image
 
-from .model import load_model
 from .model import load_model
 from .utils import (
     inference_transform, 
@@ -16,15 +18,14 @@ from .utils import (
     CLASS_NAMES
 )
 
-
+# --- App Configuration ---
 app = FastAPI(
     title="Pneumonia Detection API",
-    description="An API to classify chest X-ray images as Normal or Pneumonia.",
-    version="0.1.0"
+    description="An API to classify chest X-ray images and provide visual explanations (Grad-CAM).",
+    version="1.1.0" # Version updated for new feature
 )
 
-# Initialize a global variable `model` to None. This will hold our loaded,
-# trained model, making it accessible to our prediction endpoint.
+# --- Model Loading (Eager Loading) ---
 model = None
 
 @app.on_event("startup")
@@ -81,7 +82,7 @@ async def predict(
         "confidence": float(f"{confidence_score * 100:.4f}")
     }
 
-    # === START OF FIX: OPTIONAL CAM GENERATION ===
+
     # Only perform the expensive CAM generation if the user requests it.
     # This makes the default endpoint fast and avoids timeouts.
     if generate_cam:
@@ -101,8 +102,6 @@ async def predict(
         except Exception as e:
             print(f"!!! CAM generation failed: {e} !!!")
             response_data["cam_error"] = "Failed to generate CAM visualization."
-    # === END OF FIX ===
 
     return response_data
-
 

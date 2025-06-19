@@ -100,22 +100,3 @@ def overlay_cam_on_image(img, cam):
     
     return superimposed_img
 
-
-def overlay_cam_on_image(img, cam):
-    """
-    Overlays the CAM heatmap on the original image.
-    """
-    # Resize CAM to match the original image size
-    cam = cv2.resize(cam, (img.shape[1], img.shape[0]))
-    cam = np.uint8(255 * cam)
-    
-    # Apply a colormap to the heatmap
-    heatmap = cv2.applyColorMap(cam, cv2.COLORMAP_JET)
-    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB) # Convert from BGR to RGB
-    
-    # Superimpose the heatmap on the original image
-    superimposed_img = heatmap * 0.4 + img
-    superimposed_img = np.clip(superimposed_img, 0, 255).astype(np.uint8)
-    
-    return superimposed_img
-

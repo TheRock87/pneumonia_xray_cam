@@ -18,15 +18,35 @@ from .utils import (
     CLASS_NAMES
 )
 
+
+model_wrapper = {}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # This code runs ONCE when the server starts up
+    print("--- Server starting up. Loading model... ---")
+    try:
+        model_path = "model/pneumonia_classifier_weights.pth"
+        model_wrapper["model"] = load_model(model_path, num_classes=2)
+        print(f"--- Model loaded successfully from {model_path} ---")
+    except Exception as e:
+        print(f"!!! CRITICAL: Model loading failed during startup: {e} !!!")
+        model_wrapper["model"] = None
+    
+    yield # The application runs here
+    
+    # This code runs ONCE when the server shuts down
+    print("--- Server shutting down. Clearing model from memory. ---")
+    model_wrapper.clear()
+
+
 # --- App Configuration ---
 app = FastAPI(
     title="Pneumonia Detection API",
     description="An API to classify chest X-ray images and provide visual explanations (Grad-CAM).",
     version="1.1.0" # Version updated for new feature
+    lifespan=lifespan
 )
-
-# --- Model Loading (Eager Loading) ---
-model = None
 
 # --- API Endpoints ---
 @app.get("/")
@@ -35,8 +55,11 @@ def read_root():
 
 @app.get("/health", status_code=200)
 def health_check():
-    """A simple health check endpoint that responds immediately."""
-    return {"status": "ok"}
+    """A simple health check endpoint that also checks if the model is loaded."""
+    if model_wrapper.get("model"):
+        return {"status": "ok", "model_loaded": True}
+    return {"status": "error", "model_loaded": False}
+
 
 @app.post("/predict")
 async def predict(
@@ -47,20 +70,9 @@ async def predict(
     Receives an image, predicts its class (Normal/Pneumonia), and optionally
     returns a Grad-CAM visualization.
     """
-    global model
-
-    # === LAZY LOADING IMPLEMENTATION ===
-    # Check if the model has been loaded. If not, load it.
-    # This happens only on the very first call to this endpoint.
-    if model is None:
-        print("--- Model is not loaded. Loading model for the first time... ---")
-        try:
-            model_path = "model/pneumonia_classifier_weights.pth"
-            model = load_model(model_path, num_classes=2)
-            print(f"--- Model loaded successfully from {model_path} ---")
-        except Exception as e:
-            print(f"!!! CRITICAL: Model loading failed: {e} !!!")
-            return JSONResponse(status_code=500, content={"error": "Failed to load the model."})
+    model = model_wrapper.get("model")
+    if not model:
+        return JSONResponse(status_code=503, content={"error": "Model is not available. Check server logs."})
 
     # 1. Read and process image
     contents = await file.read()
